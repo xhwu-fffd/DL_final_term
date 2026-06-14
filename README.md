@@ -243,7 +243,7 @@ python -m calvin_act train --envs ABC --config configs/act_calvin.json --chunk-s
 
 ```
 通过网盘分享的文件：DL_final_outputs
-链接: https://pan.baidu.com/s/1VIXGbW4GnfriidNL1_1DfQ?pwd=2026 提取码: 2026
+链接: https://pan.baidu.com/s/14BRCGqMP-1-cDcouDP7lrg?pwd=2026 提取码: 2026
 ```
 
 下载后按原目录结构放回 `outputs/<run>/model_final.pt` 即可被 `task3` / `eval` / `analyze` 使用。
