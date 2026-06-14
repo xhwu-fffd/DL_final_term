@@ -1,0 +1,21 @@
+{
+  "l1_matrix": {
+    "ACT-A (A only)": {
+      "A": 0.0904,
+      "B": 0.1976,
+      "C": 0.1625
+    },
+    "ACT-ABC (A+B+C)": {
+      "A": 0.1024,
+      "B": 0.1191,
+      "C": 0.1046
+    }
+  },
+  "act_A_shift_penalty_B_pct": 118.6,
+  "act_A_shift_penalty_C_pct": 79.9,
+  "act_ABC_shift_penalty_B_pct": 16.3,
+  "act_ABC_shift_penalty_C_pct": 2.1,
+  "abc_error_reduction_on_B_pct": 39.7,
+  "abc_error_reduction_on_C_pct": 35.6,
+  "abc_in_domain_cost_on_A_pct": 13.3
+}

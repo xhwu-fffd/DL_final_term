@@ -1,0 +1,15 @@
+{
+  "train_envs": [
+    "A",
+    "B",
+    "C"
+  ],
+  "steps": 40000,
+  "train_steps_data": 1018451,
+  "num_segments": 16977,
+  "num_params": 23197575,
+  "device": "cuda",
+  "train_time_s": 5209.09,
+  "final_action_l1": 0.688435,
+  "final_val_action_l1": 0.580792
+}

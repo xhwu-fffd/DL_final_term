@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# calvin_act (HW3 Task 2).  Install PyTorch FIRST (CUDA build for GPU training):
+#   https://pytorch.org/get-started/locally/      e.g. pip install torch torchvision
+# then:  pip install -r requirements.txt    (or  pip install -e .[all])
+# ---------------------------------------------------------------------------
+
+# Core
+numpy>=1.23
+torch>=2.0
+torchvision>=0.15
+Pillow>=9.0
+tqdm>=4.60
+
+# Reading the LeRobot v2.x dataset (parquet episodes + PNG-encoded images)
+pandas>=1.5
+pyarrow>=10.0
+
+# Experiment logging (assignment §4.1 asks for loss/metric curves) - optional.
+swanlab>=0.3
+# wandb>=0.16
+
+# Analysis / convergence plots - optional.
+matplotlib>=3.5
+
+# ---------------------------------------------------------------------------
+# Installed SEPARATELY when needed:
+#   * lerobot                      - official ACT trainer (LeRobot bridge path)
+#       pip install lerobot
+#   * calvin_env (+ PyBullet)      - closed-loop CALVIN success-rate eval
+#       https://github.com/mees/calvin
+# ---------------------------------------------------------------------------

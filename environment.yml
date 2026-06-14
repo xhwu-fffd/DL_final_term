@@ -1,0 +1,22 @@
+# Conda environment for calvin_act (HW3 Task 2).
+#   conda env create -f environment.yml
+#   conda activate calvin-act-hw3
+#   # install the CUDA PyTorch build for your GPU (see https://pytorch.org):
+#   pip install torch torchvision
+#   pip install -e .
+name: calvin-act-hw3
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy>=1.23
+  - pip
+  - pandas>=1.5
+  - pyarrow>=10.0
+  - pip:
+      - Pillow>=9.0
+      - tqdm>=4.60
+      - matplotlib>=3.5
+      - swanlab>=0.3
+      - pytest>=7.0
+      # torch / torchvision: install separately with the right CUDA build.
