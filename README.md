@@ -242,8 +242,8 @@ python -m calvin_act train --envs ABC --config configs/act_calvin.json --chunk-s
 训练好的 6 个模型权重（每个约 89 MB，已从仓库中排除）请上传网盘并在此处填写链接：
 
 ```
-网盘链接：<待填写>
-提取码：  <待填写>
+通过网盘分享的文件：DL_final_outputs
+链接: https://pan.baidu.com/s/1VIXGbW4GnfriidNL1_1DfQ?pwd=2026 提取码: 2026
 ```
 
 下载后按原目录结构放回 `outputs/<run>/model_final.pt` 即可被 `task3` / `eval` / `analyze` 使用。
