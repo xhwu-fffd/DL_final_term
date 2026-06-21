@@ -197,7 +197,8 @@ class ACTPolicy(nn.Module):
         pred = self._decode(memory)
 
         valid = (~pad).unsqueeze(-1).float()           # [B, H, 1]
-        l1 = (F.l1_loss(pred, action, reduction="none") * valid).sum() / valid.sum().clamp(min=1)
+        l1 = (F.l1_loss(pred, action, reduction="none") * valid).sum() / (
+            valid.sum() * pred.shape[-1]).clamp(min=1)
         loss = l1
         kl = torch.zeros((), device=state.device)
         if self.cfg.use_vae:

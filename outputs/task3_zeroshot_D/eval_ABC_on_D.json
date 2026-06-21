@@ -1,0 +1,33 @@
+{
+  "checkpoint": "outputs/task2_envABC_40k/model_final.pt",
+  "eval_envs": [
+    "D"
+  ],
+  "num_windows": 5000,
+  "chunk_size": 10,
+  "action_l1_raw": 0.135133,
+  "action_mse_raw": 0.08917,
+  "action_l1_norm": 0.135133,
+  "first_step_l1_raw": 0.117355,
+  "per_dim_l1_raw": [
+    0.143014,
+    0.107735,
+    0.110117,
+    0.102667,
+    0.109168,
+    0.177354,
+    0.195872
+  ],
+  "per_chunk_step_l1_raw": [
+    0.117355,
+    0.124612,
+    0.128253,
+    0.131417,
+    0.134042,
+    0.136346,
+    0.140484,
+    0.144749,
+    0.147337,
+    0.1517
+  ]
+}

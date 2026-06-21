@@ -13,6 +13,16 @@ wandb/
 **/.cache/
 analyze/results/arrays/
 
+# 衍生格式（保留 JSON 正本，CSV/MD 为冗余导出）
+analyze/results/*.csv
+analyze/results/*.md
+outputs/training_summary_all_runs.*
+outputs/task3_zeroshot_D/comparison.*
+
+# 探索性草稿输出（不属于正式分析流程）
+outputs/convergence_*.png
+outputs/analysis_*.md
+
 # Python
 __pycache__/
 *.py[cod]
