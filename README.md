@@ -12,7 +12,7 @@
 > 指标：开环 Action L1（raw，越小越好）。ACT-ABC 将跨环境误差降低 36–40%，零样本 env D 改善 16%。
 
 **模型权重下载（百度网盘）：** <https://pan.baidu.com/s/14BRCGqMP-1-cDcouDP7lrg?pwd=2026>  提取码：`2026`
-（含 6 个模型权重，每个约 89 MB，下载后放回对应 `outputs/<run>/model_final.pt`）
+（含 6 个模型权重，下载后放回对应 `outputs/<run>/model_final.pt`）
 
 **SwanLab 训练记录：** <https://swanlab.cn/@xhwu/HW3-Task2-ACT/overview>
 

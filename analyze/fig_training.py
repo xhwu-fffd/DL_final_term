@@ -55,6 +55,62 @@ def load_hist(p):
 def main():
     plt = C.setup_mpl()
 
+    # ── figure 0: SwanLab-logged training dashboard (4 panels) ────────────
+    # Satisfies the requirement: "SwanLab 记录的 Loss 曲线 + 验证集指标曲线"
+    MAIN = {
+        "ACT-A":   (C.OUTPUTS / "task1_envA_40k" / "history.json", "#d62728"),
+        "ACT-ABC": (C.OUTPUTS / "task2_envABC_40k" / "history.json", "#1f77b4"),
+    }
+    fig0, axes0 = plt.subplots(2, 2, figsize=(14, 8))
+    panel_labels = ["(a)", "(b)", "(c)", "(d)"]
+    for name, (p, col) in MAIN.items():
+        if not p.exists():
+            continue
+        h = C.load_json(p)
+        step  = np.array([r["step"] for r in h])
+        loss  = np.array([r["loss"] for r in h])
+        l1    = np.array([r["action_l1"] for r in h]) / ACTION_DIM
+        kl    = np.array([r.get("kl", np.nan) for r in h])
+        vstep = np.array([r["step"] for r in h if "val_action_l1" in r])
+        vval  = np.array([r["val_action_l1"] for r in h if "val_action_l1" in r]) / ACTION_DIM
+        lw = 2.0
+
+        # (a) total loss
+        axes0[0, 0].plot(step, smooth(loss), color=col, lw=lw, label=name)
+        # (b) val action_l1 curve
+        axes0[0, 1].plot(vstep, smooth(vval, k=5), color=col, lw=lw, label=name)
+        axes0[0, 1].scatter(vstep, vval, color=col, s=6, alpha=0.35)
+        # (c) train action_l1
+        axes0[1, 0].plot(step, smooth(l1), color=col, lw=lw, label=name)
+        # (d) KL
+        axes0[1, 1].plot(step, np.clip(smooth(kl), 1e-6, None), color=col, lw=lw, label=name)
+
+    axes0[0, 0].set_title("(a) Total Loss (train)")
+    axes0[0, 0].set_xlabel("step"); axes0[0, 0].set_ylabel("loss")
+    axes0[0, 0].legend(fontsize=9)
+
+    axes0[0, 1].set_title("(b) Val Action-L1 (per-dim, normalised space)")
+    axes0[0, 1].set_xlabel("step"); axes0[0, 1].set_ylabel("val action L1 / 7")
+    axes0[0, 1].legend(fontsize=9)
+
+    axes0[1, 0].set_title("(c) Train Action-L1 (per-dim, normalised space)")
+    axes0[1, 0].set_xlabel("step"); axes0[1, 0].set_ylabel("train action L1 / 7")
+    axes0[1, 0].legend(fontsize=9)
+
+    axes0[1, 1].set_title("(d) CVAE KL term (log scale)")
+    axes0[1, 1].set_xlabel("step"); axes0[1, 1].set_ylabel("KL")
+    axes0[1, 1].set_yscale("log")
+    axes0[1, 1].legend(fontsize=9)
+
+    fig0.suptitle(
+        "Training dashboard — data recorded by SwanLab\n"
+        "(https://swanlab.cn/@xhwu/HW3-Task2-ACT/overview)",
+        fontsize=12, y=1.01)
+    fig0.tight_layout()
+    fig0.savefig(C.FIGURES / "fig_swanlab_dashboard.png")
+    plt.close(fig0)
+    print("wrote fig_swanlab_dashboard.png")
+
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 4.8))
     for name, (p, col) in RUNS.items():
         if not p.exists():
