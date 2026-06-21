@@ -54,9 +54,6 @@ def main():
     groups = ["translation", "rotation"]
     gidx = {"translation": [0, 1, 2], "rotation": [3, 4, 5]}
     xg = np.arange(len(groups)); w = 0.38
-    for i, m in enumerate(models):
-        for j, e in enumerate(envs):
-            pass
     # plot grouped by env for clarity: x = envs, separate panels per group not needed;
     # show translation & rotation as two clusters, bars = model x env
     width = 0.12
