@@ -38,10 +38,11 @@ def _sample_images(env: str, n_frames: int, key: str = "image"):
 
 def visual_shift(plt, n_frames=200):
     stats = {}
-    chan_means, bright_samples, montage = {}, {}, {}
+    chan_means, bright_samples, montage, arrs = {}, {}, {}, {}
     for env in C.EVAL_ENVS:
         imgs = _sample_images(env, n_frames)
         arr = np.stack([im.astype(np.float32) for im in imgs])          # [N,H,W,3]
+        arrs[env] = arr                                                  # reuse below
         chan_means[env] = arr.reshape(-1, 3).mean(0)
         bright_samples[env] = arr.mean(-1).reshape(len(arr), -1).mean(1)  # per-frame brightness
         montage[env] = imgs[:4]
@@ -52,13 +53,11 @@ def visual_shift(plt, n_frames=200):
         }
 
     # pairwise "visual distance" = L2 between per-env mean RGB histograms (64 bins/ch)
-    def hist(env):
-        imgs = montage.get(env)
-        arr = np.stack([im.astype(np.float32) for im in _sample_images(env, n_frames)])
+    def hist(arr):
         h = np.concatenate([np.histogram(arr[..., c], bins=32, range=(0, 255),
                                           density=True)[0] for c in range(3)])
         return h
-    hists = {e: hist(e) for e in C.EVAL_ENVS}
+    hists = {e: hist(arrs[e]) for e in C.EVAL_ENVS}
     envs = C.EVAL_ENVS
     dist = np.zeros((len(envs), len(envs)))
     for i, a in enumerate(envs):

@@ -67,7 +67,8 @@ def _validation_l1(model: ACTPolicy, loader, device: str, max_batches: int) -> f
         b = _to_device(batch, device)
         pred = model.predict_chunk(b["images"], b["state"])
         valid = (~b["pad_mask"]).unsqueeze(-1).float()
-        l1 = ((pred - b["action"]).abs() * valid).sum() / valid.sum().clamp(min=1)
+        l1 = ((pred - b["action"]).abs() * valid).sum() / (
+            valid.sum() * b["action"].shape[-1]).clamp(min=1)
         tot += float(l1)
         n += 1
     model.train()

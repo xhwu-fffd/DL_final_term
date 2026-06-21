@@ -48,6 +48,8 @@ def evaluate_offline(ckpt_path: str | Path, data_root: str | Path | None, eval_e
                      device: str | None = None, max_steps: int | None = 5000,
                      batch_size: int = 64, num_workers: int = 0,
                      max_episodes: int | None = None,
+                     subset: str = "all",
+                     val_fraction: float = 0.05, split_seed: int = 42,
                      out: str | Path | None = None) -> dict:
     device = pick_device(device)
     model, cfg, norms = load_policy(ckpt_path, device)
@@ -55,7 +57,9 @@ def evaluate_offline(ckpt_path: str | Path, data_root: str | Path | None, eval_e
     root = find_data_root(data_root)
     ed = EnvData.build(root, eval_envs, image_keys=cfg.image_keys,
                        state_key=cfg.state_key, action_key=cfg.action_key,
-                       max_episodes=max_episodes, subset="all", verbose=False)
+                       max_episodes=max_episodes, subset=subset,
+                       val_fraction=val_fraction, split_seed=split_seed,
+                       verbose=False)
     ds = ChunkDataset(ed, cfg.chunk_size, cfg.image_size, norms["state"],
                       norms["action"], pretrained_backbone=cfg.pretrained_backbone)
     if max_steps is not None and len(ds) > max_steps:

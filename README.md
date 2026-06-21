@@ -1,269 +1,159 @@
-# HW3 题目二：基于 LeRobot 的 ACT 策略跨环境泛化
+# HW3 题目二：基于 ACT 的跨环境操作策略学习与分布迁移分析
 
-在 **CALVIN** 数据集（以 **LeRobot v2.1** 格式提供）上训练轻量级 **ACT**（Action
-Chunking with Transformers）视觉-动作策略，研究它在**不同环境间的泛化能力**。三个子任务：
+复旦大学 CS60003 深度学习与空间智能 · 期末作业 题目二
 
-1. **任务 1 — 基础策略**：仅用环境 **A** 训练 ACT。
-2. **任务 2 — 联合训练**：用 **A+B+C** 混合数据、**完全相同的网络结构与超参数**重训一个模型，对比训练收敛（Action L1）。
-3. **任务 3 — 零样本跨环境测试**：把两个模型部署到**未见过的环境 D** 上零样本评测，重点分析**动作分块机制在视觉分布偏移下的鲁棒性**。
+在 CALVIN 机器人操作基准上训练 **ACT**（Action Chunking with Transformers）视觉-动作策略，系统研究视觉分布偏移对开环动作分块策略的影响，并通过多环境联合训练提升跨域泛化能力。
 
-> **当前进度**：任务 1、任务 2 **已完成**（含 20k/40k 步、以及 chunk size H∈{5,10,20} 的消融实验），并补充了一整套**深入分析**（见 [§5 分析部分](#5-分析部分deep-analysis)）。
-> **任务 3 的代码已就绪但尚未运行** —— 因为本数据集只提供了 A/B/C，**没有 `splitD`**。待拿到环境 D 数据后即可直接运行（见 [§6 给同伴：任务 3 待办](#6-给同伴任务-3-待办)）。
+| 模型 | 训练环境 | env A | env B | env C | env D（零样本）|
+|------|----------|-------|-------|-------|----------------|
+| ACT-A  | A only  | **0.090** | 0.198 | 0.163 | 0.161 |
+| ACT-ABC | A+B+C  | 0.102 | **0.119** | **0.105** | **0.135** |
 
-```
-        ┌──────────── 完全相同的 ACT 配置 ────────────┐
- env A    ──► 任务1 ──► model_A   ─┐                    │
- env A+B+C ──► 任务2 ──► model_ABC ─┤─► 任务3：在 env D 上零样本评测 ─► 对比 A vs ABC
-        └──────────────────────────┘    (Action L1 / 逐分块步误差) + 分块鲁棒性分析
-```
+> 指标：开环 Action L1（raw，越小越好）。ACT-ABC 将跨环境误差降低 36–40%，零样本 env D 改善 16%。
 
----
+**模型权重下载（百度网盘）：** <https://pan.baidu.com/s/14BRCGqMP-1-cDcouDP7lrg?pwd=2026>  提取码：`2026`
+（含 6 个模型权重，每个约 89 MB，下载后放回对应 `outputs/<run>/model_final.pt`）
 
-## 1. 我做了什么（工作总览）
-
-| 项目 | 状态 | 产物 |
-| --- | --- | --- |
-| 任务 1：env A 训练（20k & 40k 步） | ✅ | `outputs/task1_envA`, `outputs/task1_envA_40k` |
-| 任务 2：env A+B+C 联合训练（20k & 40k 步） | ✅ | `outputs/task2_envABC`, `outputs/task2_envABC_40k` |
-| chunk size 消融（H=5 / 10 / 20，A+B+C，40k） | ✅ | `outputs/task2_envABC_H5_40k`, `..._H20_40k`（H10 即 `task2_envABC_40k`） |
-| 训练收敛对比图（A vs ABC、20k vs 40k 等） | ✅ | `outputs/convergence_*.png` |
-| 全部实验汇总表 | ✅ | `outputs/training_summary_all_runs.{md,csv}` |
-| 深入分析 + 误差分析（12 张图） | ✅ | `analyze/figures/`, `analyze/results/`，报告稿见 `analyze/FINDINGS.md` |
-| 任务 3：零样本 env D 评测 | ⏳ 待运行 | 代码：`calvin_act task3` / `calvin_act eval` |
-
-**一句话结论**：联合训练（A+B+C）把"只在 A 上训练"的脆弱策略变成了鲁棒策略 —— ACT-A 在没见过的环境上动作误差暴涨 80–120%，而 ACT-ABC 只比自身 in-domain 高 2–16%（跨环境误差降低约 40%），代价仅是 in-domain 上约 13% 的小幅损失。
+**SwanLab 训练记录：** <https://swanlab.cn/@xhwu/HW3-Task2-ACT/overview>
 
 ---
 
-## 2. 仓库结构
+## 目录结构
 
 ```
-task2_share/
-├── README.md                    # 本文件
-├── REPORT_OUTLINE.md            # 实验报告大纲（撰写报告时参考）
-├── requirements.txt / environment.yml / pyproject.toml
+DL_final_term/
+├── calvin_act/              # 核心代码包（python -m calvin_act <command>）
+│   ├── cli.py               # 命令行入口（task1/task2/task3/train/evaluate）
+│   ├── calvin_data.py       # LeRobot v2.x 数据读取
+│   ├── dataset.py           # 动作分块窗口 PyTorch Dataset
+│   ├── act_model.py         # ACT 策略（ResNet-18 + CVAE + Transformer）
+│   ├── normalize.py         # 动作/状态归一化
+│   ├── train.py             # 训练循环（SwanLab 日志）
+│   └── evaluate.py          # 开环误差评测
 ├── configs/
-│   ├── act_calvin.json          # 主配置（ResNet-18, H=10, ...）—— 任务1/2共用
-│   └── act_calvin_small.json    # 笔记本/小显存的快速配置
-├── calvin_act/                  # 核心代码包（python -m calvin_act <command>）
-│   ├── cli.py                   # 命令行入口（task1/task2/task3/train/eval/info/...）
-│   ├── calvin_data.py           # LeRobot 数据读取（按文件夹选择环境）
-│   ├── dataset.py               # 动作分块窗口的 PyTorch Dataset
-│   ├── act_model.py             # ACT 策略（ResNet-18 + CVAE + Transformer 解码器）
-│   ├── normalize.py             # 状态/动作归一化（仅用训练集统计量）
-│   ├── train.py                 # 训练循环（含验证曲线、SwanLab/WandB 日志）
-│   ├── evaluate.py              # 零样本开环动作误差评测（任务3）+ 闭环 rollout 接口
-│   ├── metrics.py               # Action L1/MSE、逐分块步误差、对比表
-│   ├── temporal_ensemble.py     # ACT 时间集成（闭环推理用）
-│   └── lerobot_export.py        # 用官方 LeRobot ACT 训练的说明
-├── outputs/                     # 训练结果（已去除 *.pt 权重，权重见网盘）
-│   └── <run>/{config,history,train_summary}.json + convergence_*.png + 汇总表
-└── analyze/                     # 深入分析与画图（详见 §5）
-    ├── README.md                # 分析代码使用说明
-    ├── FINDINGS.md              # ★ 报告可直接引用的分析结论（每个数字都有图/数据支撑）
-    ├── run_all.py               # 一键跑完整套分析
-    ├── common.py / run_evals.py / fig_*.py
-    ├── figures/                 # 12 张分析图（PNG）
-    └── results/                 # 分析得到的 JSON/CSV 指标
+│   └── act_calvin.json      # 主配置（ResNet-18, H=10，两模型共用）
+├── outputs/                 # 训练与评测结果（*.pt 权重不入库）
+│   ├── task1_envA_40k/      # config.json / history.json / train_summary.json
+│   ├── task2_envABC_40k/
+│   ├── task2_envABC_H5_40k/
+│   ├── task2_envABC_H20_40k/
+│   └── task3_zeroshot_D/    # eval_*_on_D.json / per_chunk_step_D.png
+├── analyze/                 # 深入分析脚本与图表
+│   ├── common.py
+│   ├── run_evals.py         # 批量重评测（生成 results/arrays/）
+│   ├── run_all.py           # 一键复现全套分析图
+│   ├── fig_training.py / fig_generalization.py / fig_chunking.py / ...
+│   ├── fig_policy_cases.py  # 策略预测轨迹 case study
+│   ├── figures/             # 生成的分析图（PNG）
+│   └── results/             # 分析指标 JSON（eval_summary / error_breakdown / ...）
+├── requirements.txt
+└── README.md
 ```
 
-> 注意：模型权重 `*.pt`（每个约 89 MB）和原始数据 `data/`、SwanLab 日志 `swanlog/`
-> 均**不入库**。权重请从网盘下载（见 [§7](#7-模型权重)）后放回对应 `outputs/<run>/` 目录。
+> 模型权重 `*.pt`、数据集、SwanLab 日志不入库，见网盘与 `.gitignore`。
 
 ---
 
-## 3. 环境配置
-
-需要 Python ≥ 3.9：
+## 环境配置
 
 ```bash
-pip install torch torchvision        # 选择与你 GPU 匹配的 CUDA 版本
-pip install -e .                     # 或：pip install -r requirements.txt
-pip install -e ".[plot,logging]"     # 可选：matplotlib 画图 + SwanLab/WandB 日志
+conda create -n calvin_act python=3.9 -y && conda activate calvin_act
+pip install torch torchvision        # 选择与 GPU 匹配的 CUDA 版本
+pip install -e ".[plot,logging]"     # 或：pip install -r requirements.txt
+# 核心依赖：torch, torchvision, numpy, Pillow, pandas, pyarrow, swanlab
 ```
 
-核心依赖：`numpy, torch, torchvision, Pillow, pandas, pyarrow`（pandas/pyarrow 读取
-LeRobot 的 parquet）。Conda 用户：`conda env create -f environment.yml`。
+Conda 用户：`conda env create -f environment.yml`
 
 ---
 
-## 4. 数据准备
+## 数据准备
 
-数据是**一组 LeRobot v2.x 数据集，每个 CALVIN 环境一个文件夹**，放在同一个根目录下。
-默认根目录为 `data/calvin-lerobot/`（即本目录下）：
+数据为 LeRobot v2.x 格式，默认根目录 `data/calvin-lerobot/`（可用 `--data-root` 或环境变量 `CALVIN_DATA_ROOT` 覆盖）：
 
 ```
 data/calvin-lerobot/
-  splitA/                                   # 环境 A
-    meta/info.json                          # 特征定义、fps、路径模板
-    meta/episodes.jsonl                     # 每行一个 episode（长度、scene 等）
-    meta/tasks.jsonl
-    data/chunk-000/episode_000000.parquet   # 每个 parquet = 一个 episode
-    ...
-  splitB/  splitC/  splitD/                  # 同样的结构（D 待补充）
+  splitA/  splitB/  splitC/  splitD/
+    meta/info.json
+    meta/episodes.jsonl
+    data/chunk-000/episode_000000.parquet   # image(200×200) + wrist_image(84×84) + state(15) + actions(7)
 ```
 
-每行 parquet 是一个时间步，列包含：`image`（200×200×3，PNG 编码）、`wrist_image`
-（84×84×3）、`state`（float32[15]）、`actions`（float32[7]，即 CALVIN `rel_actions`）。
-**环境 = 文件夹**：env A → `splitA`，…，env D → `splitD`。
-
-**让代码找到数据**（优先级从高到低）：
-
-1. 默认：放在 `task2_share/data/calvin-lerobot/`，无需任何参数；
-2. 环境变量：`$env:CALVIN_DATA_ROOT = "D:\path\to\calvin-lerobot"`（PowerShell）/ `export CALVIN_DATA_ROOT=...`（bash）；
-3. 命令行参数：`--data-root <path>`。
-
-确认加载器看到的数据：
-
-```bash
-python -m calvin_act info
-#   env A: 6089 episodes, 366693 frames, fps=10 (splitA) ...
-#   env B: 6115 episodes ... ; env C: 5666 episodes ...
-```
-
-本次使用的数据规模：env A = 6089 episodes / 366693 frames，env B = 6115，env C = 5666，fps=10。
+验证数据加载：`python -m calvin_act info`
 
 ---
 
-## 5. 运行训练与评测
+## 运行说明
 
-每个任务**独立可运行**。默认输出到 `outputs/task1_envA`、`outputs/task2_envABC`、`outputs/task3_zeroshot_D`。
-
-### 任务 1 —— 仅在环境 A 上训练
+### 一、训练（Train）
 
 ```bash
-python -m calvin_act task1 --config configs/act_calvin.json --logger swanlab --num-workers 4
+# 任务一：env A 单环境训练（ACT-A）
+python -m calvin_act task1 --config configs/act_calvin.json --steps 40000 --num-workers 4
+
+# 任务二：env A+B+C 联合训练（ACT-ABC）
+python -m calvin_act task2 --config configs/act_calvin.json --steps 40000 --num-workers 4
+
+# chunk size 消融（H=5 / H=20，均为 A+B+C，40k 步）
+python -m calvin_act train --envs ABC --chunk-size 5  --out outputs/task2_envABC_H5_40k  --steps 40000
+python -m calvin_act train --envs ABC --chunk-size 20 --out outputs/task2_envABC_H20_40k --steps 40000
 ```
 
-### 任务 2 —— 在 A+B+C 上联合训练（配置完全相同）
+训练日志（loss / action_l1 / val_action_l1 / kl）由 SwanLab 自动记录（`--logger swanlab`，需提前 `swanlab login`）。
+
+### 二、评测（Evaluate）
 
 ```bash
-python -m calvin_act task2 --config configs/act_calvin.json --logger swanlab --num-workers 4
+# 任务三：零样本迁移至 env D
+python -m calvin_act task3 \
+  --ckpt-a   outputs/task1_envA_40k/model_final.pt \
+  --ckpt-abc outputs/task2_envABC_40k/model_final.pt \
+  --test-env D
+# 输出：outputs/task3_zeroshot_D/eval_*_on_D.json、per_chunk_step_D.png
 ```
 
-（需要 `splitB/`、`splitC/` 存在。）若任务 1 也已完成，任务 2 会自动输出
-`outputs/convergence_A_vs_ABC.png` 对比两者的 Action-L1 曲线。
-
-### 任务 3 —— 在未见过的环境 D 上零样本评测两个模型
+### 三、深入分析
 
 ```bash
-python -m calvin_act task3        # 默认使用 outputs/task1_envA 和 outputs/task2_envABC
+cd analyze
+python run_evals.py   # 先生成 results/arrays/（需权重文件）
+python run_all.py     # 生成全套分析图（fig_*.png）
 ```
 
-会输出每个模型的评测 JSON、`comparison.md/.csv` 以及 `per_chunk_step_D.png`
-（动作分块鲁棒性曲线）。可用 `--ckpt-a` / `--ckpt-abc` 指定权重，用 `--test-env` 改测试环境。
-
-### chunk size 消融（已做）
-
-```bash
-# H=5/10/20，A+B+C，相同数据，仅改 chunk-size
-python -m calvin_act train --envs ABC --config configs/act_calvin.json --chunk-size 5  --out outputs/task2_envABC_H5_40k  --steps 40000
-python -m calvin_act train --envs ABC --config configs/act_calvin.json --chunk-size 20 --out outputs/task2_envABC_H20_40k --steps 40000
-```
-
-### 常用参数（所有命令通用）
-
-| 参数 | 含义 |
-| --- | --- |
-| `--data-root PATH` | `split{A,B,C,D}/` 所在目录（默认 `data/calvin-lerobot`） |
-| `--config FILE` | ACT 配置 JSON（默认 `configs/act_calvin.json`） |
-| `--device cuda\|cpu` | 计算设备（默认自动） |
-| `--num-workers N` | DataLoader 进程数（GPU 训练建议 4–8） |
-| `--logger swanlab\|wandb\|none` | 实验记录后端（导出 Loss/验证曲线） |
-| `--steps N` / `--batch-size N` / `--chunk-size H` | 覆盖配置项 |
-| `--max-episodes N` | 每个环境最多用多少 episode（快速调试/省显存） |
+完整分析结论（含全部数字）见 [`analyze/FINDINGS.md`](analyze/FINDINGS.md)。
 
 ---
 
-## 6. 分析部分（Deep Analysis）
+## 方法要点
 
-> 这是本次工作的重点。完整的、可直接写进报告的结论（含全部数字）在
-> **[`analyze/FINDINGS.md`](analyze/FINDINGS.md)**；分析代码用法见
-> [`analyze/README.md`](analyze/README.md)。一键复现：`cd analyze && python run_all.py`
-> （需要先把权重放回 `outputs/`）。
+**ACT 架构**：ResNet-18（双路相机，96×96）提取视觉特征 → CVAE 编码动作块为潜变量 $z$ → Transformer 编码器融合视觉/状态/$z$ → Transformer 解码器输出 $H$ 步预测动作。推断时 $z=0$（先验均值），实现单帧观测驱动的开环动作分块。
 
-**方法学要点**（保证数字站得住脚）：
+**核心发现**：
 
-- **全集重测**：训练时记录的 `val_action_l1`（≈0.54）只在验证集**前 512 个窗口**上算，方差大、偏悲观；分析里在整个 held-out 集上均匀采样 3000 个窗口重测，得到稳定值（env A ≈ 0.09）。
-- **统一在 held-out 上评测**：用与训练相同的 `val_fraction=0.05`、`split_seed=42`，保证评测帧对两个模型都没在训练里见过。
-- **原始动作单位**：误差先逆归一化再比较，A 模型与 ABC 模型公平可比。
-- **用 B/C 代理未见环境 D**：因为缺 `splitD`，而 ACT-A 从未见过 B/C，所以它在 B/C 上的误差就是真实的零样本视觉偏移信号 —— 正是任务 3 要分析的现象。补上 D 后，把 `analyze/common.py` 里 `EVAL_ENVS` 加上 `"D"` 即可让所有图自动扩展。
-
-### 各张图的含义
-
-| 图（`analyze/figures/`） | 分析内容 | 关键结论 |
-| --- | --- | --- |
-| **fig_generalization_matrix.png** | 模型 × 评测环境的 held-out 动作 L1 热图 + 柱状图 | ACT-A：A=0.090 → B=0.198 / C=0.163（暴涨）；ACT-ABC：0.102 / 0.119 / 0.105（几乎持平） |
-| **fig_generalization_gap.png** | 相对各自 in-domain 的跨环境退化 + 夹爪准确率 | 联合训练把跨环境退化从 +120% 压到 +16% |
-| **fig_chunk_step_growth.png** | **逐分块步**误差（chunk 内第 1…H 步）in-domain vs 未见环境 | ★ 核心：ACT-A 误差在 A 上沿 chunk 仅 +0.012，在 B 上 +0.074（**陡 6 倍**）—— 误读一帧 OOD 观测后，开环 rollout 把错误沿整个 horizon 放大 |
-| **fig_chunk_size_ablation.png** | H=5/10/20 的精度、夹爪准确率、逐步误差曲线 | 开环下 H 越小逐步误差越低、夹爪越准；所有 H 共享同一逐步误差曲线，长 chunk 只是延伸到更难的远期 |
-| **fig_per_dim_error.png** | 7 维动作（xyz/roll-pitch-yaw/夹爪）逐维误差 | 视觉偏移下 ACT-A 在 **yaw 和夹爪**（最依赖视觉）上误差最大 |
-| **fig_error_groups.png** | 平移/旋转误差 + 夹爪错误率 | ACT-A 夹爪错误率在 env B 上从 0.053 升到 0.162（3 倍） |
-| **fig_temporal_error.png** | 误差随 episode 内位置（0=起点,1=终点）的变化 | 呈 U 形：起点（接近）和终点（精细操作/抓取）误差最高 |
-| **fig_visual_shift.png** | 各环境图像的 RGB 均值、亮度分布、视觉距离矩阵 | env B 明显更亮（亮度 176 vs A 的 119）；视觉距离 A→B(0.08) 最大，与 ACT-A 在 B 上误差最大一致 |
-| **fig_image_montage.png** | A/B/C 静态相机样例帧拼图 | 直观看到桌面颜色/纹理/物体布局差异（A 深红桌、B 浅黄桌、C 中棕桌） |
-| **fig_action_shift.png** | 各环境动作分布直方图 + 夹爪开合比例 | 三个环境动作分布几乎重合 → **偏移纯粹是视觉的**，不是动作分布偏移 |
-| **fig_training_curves.png** | A vs ABC 训练 L1 + KL 曲线（叠加全集重测点） | 联合模型 train-L1 更高（看更多视觉变化），但泛化更好；CVAE 的 KL 早期就坍缩 |
-| **fig_convergence_speed.png** | 各 run 达到 train-L1 阈值所需步数 | 收敛速度对比 |
-
-### 分析结果对应的数据文件（`analyze/results/`）
-
-`eval_summary.{json,csv,md}`（所有 模型×环境 的指标）、`generalization_findings.json`、
-`chunking_findings.json`、`error_breakdown.json`、`temporal_error.json`、`data_shift.json`。
+1. **视觉偏移放大失效**：开环分块将误读的单帧感知锁定到整个序列。域外误差增长斜率是域内的 **6 倍**（env B 末步—首步差 +0.074 vs 域内 +0.012），集中在视觉敏感的偏航角（yaw）和夹爪（gripper）维度。
+2. **多环境联合训练**：无结构变更，仅扩大训练数据覆盖，即可将跨环境误差降低 36–40%，零样本 env D 改善 16%，代价是域内误差小幅上升 13%（泛化-特化权衡）。
+3. **分块大小消融**：开环 L1 随 $H$ 单调升高（H=5/10/20 对应 0.097/0.102/0.113），短分块在开环评估上更优；闭环效益需另行验证。
 
 ---
 
-## 7. 任务 3 
+## 实验跟踪（SwanLab）
 
-任务 3 代码已经写好：
+训练时默认用 SwanLab 记录所有指标（`step / loss / action_l1 / val_action_l1 / kl / lr`），每 500 步评估验证集一次：
 
-1. 把 `splitD/`（与 A/B/C 同样的 LeRobot 结构）放进 `data/calvin-lerobot/`；
-2. 从网盘下载权重，放回 `outputs/task1_envA_40k/model_final.pt` 和 `outputs/task2_envABC_40k/model_final.pt`；
-3. 运行零样本评测：
-   ```bash
-   python -m calvin_act task3 \
-     --ckpt-a   outputs/task1_envA_40k/model_final.pt \
-     --ckpt-abc outputs/task2_envABC_40k/model_final.pt \
-     --test-env D
-   ```
-   得到 `comparison.md`、`eval_*_on_D.json`、`per_chunk_step_D.png`。
-4. 让整套分析图自动覆盖到 env D：编辑 `analyze/common.py`，把 `EVAL_ENVS = ["A","B","C"]`
-   改成 `["A","B","C","D"]`，然后 `cd analyze && python run_all.py`。所有图会自动加入 env D 的结果。
-5. （可选，更标准的指标）闭环成功率需要 CALVIN 的 PyBullet 仿真器 `calvin_env`
-   （单独安装）；`evaluate.closed_loop_rollout(...)` 已提供带时间集成的通用闭环接口。
-
-报告中重点分析（任务要求）：**动作分块机制在跨环境视觉偏移下的鲁棒性** ——
-可直接复用 `analyze/FINDINGS.md` 第 3、4 节的论证，并把其中的"未见环境 B/C"替换/补充为真正的 env D。
-
----
-
-## 8. 模型权重
-
-训练好的 6 个模型权重（每个约 89 MB，已从仓库中排除）请上传网盘并在此处填写链接：
-
-```
-通过网盘分享的文件：DL_final_outputs
-链接: https://pan.baidu.com/s/14BRCGqMP-1-cDcouDP7lrg?pwd=2026 提取码: 2026
+```bash
+swanlab login          # 首次登录（填入 API key）
+python -m calvin_act task2 --logger swanlab --project HW3-Task2-ACT
 ```
 
-下载后按原目录结构放回 `outputs/<run>/model_final.pt` 即可被 `task3` / `eval` / `analyze` 使用。
+本项目的 6 次训练运行（ACT-A/ABC × 20k/40k + H=5/20 消融）均已上传至：
+<https://swanlab.cn/@xhwu/HW3-Task2-ACT/overview>
 
 ---
 
-## 9. 超参数（任务 1/2 完全一致，摘自 `configs/act_calvin.json`）
+## 第三方代码
 
-| 项 | 取值 |
-| --- | --- |
-| 视觉骨干 | ResNet-18（ImageNet 预训练） |
-| chunk size H | 10 |
-| hidden dim / heads | 256 / 8 |
-| encoder / decoder 层数 | 4 / 6 |
-| latent dim / KL 权重 β | 32 / 10 |
-| 优化器 | AdamW（cosine 退火） |
-| lr / lr_backbone / weight_decay | 1e-4 / 1e-5 / 1e-4 |
-| batch size / steps | 32 / 40000 |
-| 图像尺寸 / 相机 | 96 / static + wrist |
-| 动作空间 | rel_actions（7 维） |
-| 归一化 | state: mean/std；action: min/max |
+- [tonyzhaozh/act](https://github.com/tonyzhaozh/act)（ACT 原始实现，ResNet-18 + CVAE + Transformer 架构）
+- [huggingface/lerobot](https://github.com/huggingface/lerobot)（CALVIN LeRobot v2.x 数据格式）
+- [mees/calvin](https://github.com/mees/calvin)（CALVIN 基准，桌面机械臂操作环境 A/B/C/D）
 
-完整的逐 run 汇总见 `outputs/training_summary_all_runs.md`。
+`calvin_act/` 下的训练/评测/分析代码为本作业自研实现。

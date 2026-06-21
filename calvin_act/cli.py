@@ -30,8 +30,8 @@ import sys
 from pathlib import Path
 
 # Repo-relative default locations -------------------------------------------
-TASK1_OUT = "outputs/task1_envA"
-TASK2_OUT = "outputs/task2_envABC"
+TASK1_OUT = "outputs/task1_envA_40k"
+TASK2_OUT = "outputs/task2_envABC_40k"
 TASK3_OUT = "outputs/task3_zeroshot_D"
 
 
@@ -152,14 +152,21 @@ def cmd_task3(args):
     for tag, ckpt, ev, envs in (("ACT-A", ckpt_a, ev_a, "A"),
                                 ("ACT-ABC", ckpt_abc, ev_abc, "A+B+C")):
         summ = ckpt.parent / "train_summary.json"
+        cfg_path = ckpt.parent / "config.json"
         s = _load_json(summ) if summ.exists() else {}
+        action_dim = (_load_json(cfg_path).get("action_dim", 1)
+                      if cfg_path.exists() else 1)
+        # Divide historical train/val L1 by action_dim so the unit matches
+        # evaluate_offline's per-dim mean L1 (action_l1_raw).
+        def _scale(v):
+            return round(v / action_dim, 6) if v is not None else None
         rows.append({
             "model": tag, "train_envs": envs,
-            "final_train_L1": s.get("final_action_l1"),
-            "final_val_L1": s.get("final_val_action_l1"),
-            f"D_action_L1_raw": ev["action_l1_raw"],
-            f"D_first_step_L1": ev["first_step_l1_raw"],
-            f"D_action_MSE_raw": ev["action_mse_raw"],
+            "final_train_L1_per_dim": _scale(s.get("final_action_l1")),
+            "final_val_L1_per_dim": _scale(s.get("final_val_action_l1")),
+            "D_action_L1_raw": ev["action_l1_raw"],
+            "D_first_step_L1": ev["first_step_l1_raw"],
+            "D_action_MSE_raw": ev["action_mse_raw"],
         })
     write_comparison_table(rows, out / "comparison.md", csv_path=out / "comparison.csv")
     print(f"[task3] wrote {out/'comparison.md'} and {out/'comparison.csv'}")
